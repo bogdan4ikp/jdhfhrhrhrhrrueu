@@ -195,12 +195,13 @@ async function startServer() {
           }
         });
 
-        const contents: any[] = [];
+        let contents: any;
         if (images && images.length > 0) {
+          const parts: any[] = [];
           images.forEach((img: string) => {
             const match = img.match(/^data:(.*?);base64,(.*)$/);
             if (match) {
-              contents.push({
+              parts.push({
                 inlineData: {
                   mimeType: match[1],
                   data: match[2]
@@ -208,18 +209,33 @@ async function startServer() {
               });
             }
           });
-        }
-        if (prompt) {
-          contents.push(prompt);
+          if (prompt) {
+            parts.push({ text: prompt });
+          }
+          contents = { parts };
+        } else {
+          contents = prompt;
         }
 
-        const responseStream = await ai.models.generateContentStream({
-          model: "gemini-2.5-flash",
-          contents: contents,
-          config: {
-            systemInstruction: `You are Solvexa, a powerful, highly intelligent AI. You MUST ALWAYS output your detailed internal reasoning wrapped in <think> and </think> tags before providing your final answer to the user. Do not use JSON. Your final answer should be well formatted. IMPORTANT: You must think and answer in ${langName}. If the user asks you to write code or run HTML, you should output complete, standalone HTML inside \`\`\`html ... \`\`\` blocks, and the frontend will allow the user to run it.`,
-          },
-        });
+        let responseStream;
+        try {
+          responseStream = await ai.models.generateContentStream({
+            model: "gemini-2.5-flash",
+            contents: contents,
+            config: {
+              systemInstruction: `You are Solvexa, a powerful, highly intelligent AI. You MUST ALWAYS output your detailed internal reasoning wrapped in <think> and </think> tags before providing your final answer to the user. Do not use JSON. Your final answer should be well formatted. IMPORTANT: You must think and answer in ${langName}. If the user asks you to write code or run HTML, you should output complete, standalone HTML inside \`\`\`html ... \`\`\` blocks, and the frontend will allow the user to run it.`,
+            },
+          });
+        } catch (modelError) {
+          console.warn("gemini-2.5-flash failed, attempting fallback to gemini-2.5-pro...", modelError);
+          responseStream = await ai.models.generateContentStream({
+            model: "gemini-2.5-pro",
+            contents: contents,
+            config: {
+              systemInstruction: `You are Solvexa, a powerful, highly intelligent AI. You MUST ALWAYS output your detailed internal reasoning wrapped in <think> and </think> tags before providing your final answer to the user. Do not use JSON. Your final answer should be well formatted. IMPORTANT: You must think and answer in ${langName}. If the user asks you to write code or run HTML, you should output complete, standalone HTML inside \`\`\`html ... \`\`\` blocks, and the frontend will allow the user to run it.`,
+            },
+          });
+        }
 
         for await (const chunk of responseStream) {
           if (chunk.text) {

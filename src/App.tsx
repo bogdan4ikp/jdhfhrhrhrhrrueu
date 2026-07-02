@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowUp, Brain, Clock, ChevronDown, ChevronUp, Copy, Check, Paperclip, X, Settings, Image as ImageIcon, File, Camera, Scan, Play, Sun, Moon, Monitor } from 'lucide-react';
+import { ArrowUp, Brain, Clock, ChevronDown, ChevronUp, Copy, Check, Paperclip, X, Settings, Image as ImageIcon, File, Camera, Scan, Play, Sun, Moon, Monitor, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -27,7 +27,9 @@ const TRANSLATIONS = {
     attachPhoto: "Фото и видео",
     attachFile: "Загрузить файл",
     attachCamera: "Сделать фото",
-    attachScan: "Отсканировать документ"
+    attachScan: "Отсканировать документ",
+    offlineTitle: "Отсутствует подключение к интернету",
+    offlineDesc: "Для работы Solvexa требуется стабильное подключение. Пожалуйста, подключитесь к сети."
   },
   en: {
     title: "Hello!",
@@ -50,7 +52,9 @@ const TRANSLATIONS = {
     attachPhoto: "Photo & Video",
     attachFile: "Upload file",
     attachCamera: "Take photo",
-    attachScan: "Scan document"
+    attachScan: "Scan document",
+    offlineTitle: "No Internet Connection",
+    offlineDesc: "Solvexa requires an active internet connection. Please connect to the network to continue."
   },
   es: {
     title: "¡Hola!",
@@ -73,7 +77,9 @@ const TRANSLATIONS = {
     attachPhoto: "Foto y video",
     attachFile: "Subir archivo",
     attachCamera: "Tomar foto",
-    attachScan: "Escanear documento"
+    attachScan: "Escanear documento",
+    offlineTitle: "Sin Conexión a Internet",
+    offlineDesc: "Solvexa requiere una conexión a Internet activa. Conéctese a la red para continuar."
   },
   fr: {
     title: "Bonjour!",
@@ -96,7 +102,9 @@ const TRANSLATIONS = {
     attachPhoto: "Photo et vidéo",
     attachFile: "Téléverser un fichier",
     attachCamera: "Prendre une photo",
-    attachScan: "Numériser un document"
+    attachScan: "Numériser un document",
+    offlineTitle: "Pas de Connexion Internet",
+    offlineDesc: "Solvexa requiert une connexion Internet active. Veuillez vous connecter au réseau pour continuer."
   },
   de: {
     title: "Hallo!",
@@ -119,7 +127,9 @@ const TRANSLATIONS = {
     attachPhoto: "Foto & Video",
     attachFile: "Datei hochladen",
     attachCamera: "Foto machen",
-    attachScan: "Dokument scannen"
+    attachScan: "Dokument scannen",
+    offlineTitle: "Keine Internetverbindung",
+    offlineDesc: "Solvexa erfordert eine aktive Internetverbindung. Bitte verbinden Sie sich mit dem Netzwerk."
   }
 };
 
@@ -289,6 +299,7 @@ function ParsedMessage({ text, status }: { text: string, status?: string }) {
 
 export default function App() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -309,6 +320,19 @@ export default function App() {
   const chatInputRef = useRef<HTMLInputElement>(null);
 
   const t = TRANSLATIONS[language];
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -431,6 +455,7 @@ export default function App() {
   };
 
   const handleSend = async () => {
+    if (isTyping) return;
     if (!input.trim() && attachedImages.length === 0) return;
 
     const currentInput = input;
@@ -446,7 +471,9 @@ export default function App() {
     setMessages(prev => [...prev, { id: aiMsgId, role: 'ai', text: '', status: 'thinking' }]);
 
     try {
-      const res = await fetch('/api/chat', {
+      const appUrl = (import.meta as any).env.VITE_APP_URL || '';
+      const apiBase = appUrl ? (appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl) : '';
+      const res = await fetch(`${apiBase}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: currentInput, images: currentImages, language })
@@ -461,17 +488,20 @@ export default function App() {
 
       const decoder = new TextDecoder();
       let fullText = '';
+      let buffer = '';
       
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
         
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6);
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data: ')) {
+            const dataStr = trimmed.slice(6).trim();
             if (!dataStr) continue;
             
             try {
@@ -568,6 +598,58 @@ export default function App() {
   return (
     <div className="h-[100dvh] w-full bg-white dark:bg-[#1c1c1c] flex flex-col overflow-hidden relative font-sans text-slate-800 dark:text-slate-100 transition-colors duration-300">
       
+      {/* Full screen liquid morphing background */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 opacity-40 dark:opacity-20">
+        <div className="liquid-card-bg" style={{
+          background: 'radial-gradient(circle at 30% 30%, #3b82f6 0%, transparent 40%), radial-gradient(circle at 75% 65%, #06b6d4 0%, transparent 40%)',
+          filter: 'url(#liquid)'
+        }} />
+      </div>
+
+      {/* Offline state overlay card */}
+      <AnimatePresence>
+        {!isOnline && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 dark:bg-black/60 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="w-full max-w-md bg-white dark:bg-[#282828] rounded-3xl shadow-2xl border border-slate-100 dark:border-[#383838] p-8 text-center flex flex-col items-center relative overflow-hidden"
+            >
+              {/* Animated liquid backdrop in the card */}
+              <div className="absolute inset-0 pointer-events-none opacity-20 dark:opacity-10">
+                <div className="liquid-card-bg" style={{
+                  background: 'radial-gradient(circle at 50% 50%, #ef4444 0%, transparent 50%)',
+                  filter: 'url(#liquid)'
+                }} />
+              </div>
+
+              <div className="relative z-10">
+                <div className="w-16 h-16 bg-red-50 dark:bg-red-950/40 text-red-500 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                  <WifiOff className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-3">
+                  {t.offlineTitle}
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-6">
+                  {t.offlineDesc}
+                </p>
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-[#1c1c1c] text-xs font-mono text-slate-500 dark:text-slate-400 rounded-full">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                  offline mode active
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Settings Toggle */}
       <button 
         onClick={() => setShowSettings(!showSettings)}
@@ -657,10 +739,10 @@ export default function App() {
       </AnimatePresence>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto scroll-smooth relative">
-        <div className="w-full max-w-3xl mx-auto p-4 sm:p-6 md:p-8 flex flex-col gap-6 min-h-full relative">
+      <div className="absolute inset-0 overflow-y-auto scroll-smooth z-0">
+        <div className="w-full max-w-3xl mx-auto p-4 sm:p-6 md:p-8 flex flex-col gap-6 min-h-full pt-20 pb-40 relative">
           {messages.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center my-auto">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -691,7 +773,7 @@ export default function App() {
                       </div>
                       {showThoughts && msg.thought && (
                         <div className="font-mono text-xs opacity-70 whitespace-pre-wrap leading-relaxed mt-2">
-                          {msg.thought}
+                           {msg.thought}
                         </div>
                       )}
                     </div>
@@ -738,9 +820,9 @@ export default function App() {
           <div ref={messagesEndRef} className="h-4" />
         </div>
       </div>
-
+ 
       {/* Input Area */}
-      <div className="p-4 sm:p-6 md:p-8 z-10 relative bg-transparent transition-colors duration-300">
+      <div className="absolute bottom-0 left-0 right-0 z-10 p-4 sm:p-6 md:p-8 bg-transparent transition-colors duration-300">
         <div className="max-w-3xl mx-auto w-full">
           {/* Image Previews */}
           {attachedImages.length > 0 && (
@@ -758,7 +840,8 @@ export default function App() {
                     )}
                     <button 
                       onClick={() => removeImage(idx)}
-                      className="absolute -top-2 -right-2 p-1 bg-slate-800 dark:bg-slate-700 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
+                      disabled={isTyping}
+                      className="absolute -top-2 -right-2 p-1 bg-slate-800 dark:bg-slate-700 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md disabled:hidden"
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -777,10 +860,10 @@ export default function App() {
             <input type="file" accept="*" multiple className="hidden" ref={fileInputRef} onChange={handleFileChange} />
             <input type="file" accept="image/*" capture="environment" className="hidden" ref={cameraInputRef} onChange={handleFileChange} />
             <input type="file" accept="image/*" capture="environment" className="hidden" ref={scanInputRef} onChange={handleFileChange} />
-
+ 
             <div className="relative">
               <AnimatePresence>
-                {showAttachMenu && (
+                {showAttachMenu && !isTyping && (
                   <motion.div 
                     ref={attachMenuRef}
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -789,37 +872,38 @@ export default function App() {
                     transition={{ duration: 0.15 }}
                     className="absolute bottom-full left-0 mb-4 w-64 bg-white dark:bg-[#282828] rounded-2xl shadow-xl border border-slate-100 dark:border-[#383838] p-2 flex flex-col gap-1 z-20"
                   >
-                    <button type="button" onClick={() => { setShowAttachMenu(false); photoInputRef.current?.click(); }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-[#383838] dark:focus:bg-[#383838] rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors w-full text-left">
+                    <button type="button" onClick={() => { setShowAttachMenu(false); photoInputRef.current?.click(); }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-0 dark:hover:bg-[#383838] dark:focus:bg-[#383838] rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors w-full text-left">
                       <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-500 rounded-lg"><ImageIcon className="w-4 h-4" /></div>
                       {t.attachPhoto}
                     </button>
-                    <button type="button" onClick={() => { setShowAttachMenu(false); fileInputRef.current?.click(); }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-[#383838] dark:focus:bg-[#383838] rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors w-full text-left">
+                    <button type="button" onClick={() => { setShowAttachMenu(false); fileInputRef.current?.click(); }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-0 dark:hover:bg-[#383838] dark:focus:bg-[#383838] rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors w-full text-left">
                       <div className="p-2 bg-purple-50 dark:bg-purple-900/30 text-purple-500 rounded-lg"><File className="w-4 h-4" /></div>
                       {t.attachFile}
                     </button>
-                    <button type="button" onClick={() => { setShowAttachMenu(false); cameraInputRef.current?.click(); }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-[#383838] dark:focus:bg-[#383838] rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors w-full text-left">
+                    <button type="button" onClick={() => { setShowAttachMenu(false); cameraInputRef.current?.click(); }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-0 dark:hover:bg-[#383838] dark:focus:bg-[#383838] rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors w-full text-left">
                       <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-500 rounded-lg"><Camera className="w-4 h-4" /></div>
                       {t.attachCamera}
                     </button>
-                    <button type="button" onClick={() => { setShowAttachMenu(false); scanInputRef.current?.click(); }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:hover:bg-[#383838] dark:focus:bg-[#383838] rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors w-full text-left">
+                    <button type="button" onClick={() => { setShowAttachMenu(false); scanInputRef.current?.click(); }} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none focus:ring-0 dark:hover:bg-[#383838] dark:focus:bg-[#383838] rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors w-full text-left">
                       <div className="p-2 bg-orange-50 dark:bg-orange-900/30 text-orange-500 rounded-lg"><Scan className="w-4 h-4" /></div>
                       {t.attachScan}
                     </button>
                   </motion.div>
                 )}
               </AnimatePresence>
-
+ 
               <button
                 ref={attachButtonRef}
                 type="button"
-                onClick={() => setShowAttachMenu(!showAttachMenu)}
-                className="absolute left-2 top-1/2 -translate-y-1/2 p-2.5 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-[#383838] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:text-blue-500 rounded-full transition-colors z-10"
+                onClick={() => !isTyping && setShowAttachMenu(!showAttachMenu)}
+                disabled={isTyping}
+                className="absolute left-2 top-1/2 -translate-y-1/2 p-2.5 text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-[#383838] focus:outline-none rounded-full transition-colors z-10 disabled:opacity-40 disabled:pointer-events-none"
                 title={t.attach}
               >
                 <Paperclip className="w-5 h-5" />
               </button>
             </div>
-
+ 
             <input
               ref={chatInputRef}
               type="text"
@@ -833,12 +917,12 @@ export default function App() {
               }}
               placeholder={t.placeholder}
               disabled={isTyping}
-              className="w-full liquid-input border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 text-[15px] rounded-full pl-14 pr-14 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400 dark:placeholder:text-white/50 shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
+              className="w-full liquid-input border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 text-[15px] rounded-full pl-14 pr-14 py-4 focus:outline-none focus:ring-0 focus:border-slate-200 dark:focus:border-white/10 focus-visible:ring-0 focus-visible:outline-none outline-none ring-0 transition-all placeholder:text-slate-400 dark:placeholder:text-white/50 shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.4)]"
             />
             <button
               type="submit"
               disabled={(!input.trim() && attachedImages.length === 0) || isTyping}
-              className="absolute right-2 p-2.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-[#282828] disabled:opacity-50 disabled:hover:bg-blue-500 transition-colors shadow-sm shadow-blue-500/20"
+              className="absolute right-2 p-2.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 focus:outline-none disabled:opacity-30 disabled:pointer-events-none transition-colors shadow-sm shadow-blue-500/20"
             >
               <ArrowUp className="w-5 h-5" />
             </button>
