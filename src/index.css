@@ -1,0 +1,107 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer utilities {
+  .eyes-anim {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: look 6s ease-in-out infinite;
+  }
+
+  .eye-anim {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: blink 6s ease-in-out infinite;
+  }
+}
+
+@keyframes look {
+  0%   { transform: translateX(0); }
+  8%   { transform: translateX(-55px); }
+  22%  { transform: translateX(-55px); }
+  30%  { transform: translateX(0); }
+  40%  { transform: translateX(55px); }
+  54%  { transform: translateX(55px); }
+  62%  { transform: translateX(0); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes blink {
+  0%, 63%, 68%, 100% { transform: scaleY(1); }
+  65.5% { transform: scaleY(0.08); }
+}
+
+.liquid-card {
+  position: relative;
+  width: 340px;
+  padding: 2rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+}
+
+.dark .liquid-card {
+  background: rgba(30, 30, 30, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.liquid-card-bg {
+  position: absolute;
+  inset: -50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.4), transparent 25%),
+              radial-gradient(circle at 70% 70%, rgba(255, 255, 255, 0.2), transparent 30%);
+  animation: float 8s ease-in-out infinite;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  filter: url(#liquid);
+}
+
+.dark .liquid-card-bg {
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.1), transparent 25%),
+              radial-gradient(circle at 70% 70%, rgba(255, 255, 255, 0.05), transparent 30%);
+}
+
+.liquid-card-content {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes float {
+  0% { transform: translate(0,0) rotate(0deg); }
+  50% { transform: translate(20px, 15px) rotate(180deg); }
+  100% { transform: translate(0,0) rotate(360deg); }
+}
+
+@media (max-width: 600px) {
+  .liquid-card { width: calc(100% - 40px); padding: 1.25rem; border-radius: 14px; }
+}
+
+.liquid-input {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+}
+
+.dark .liquid-input {
+  background: rgba(40, 40, 40, 0.6);
+}
+
+:focus-visible {
+  outline: 3px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Specific focus style for elements focused via spatial navigation (only when navigating via keyboard/remote) */
+.using-keyboard .sn-focused {
+  outline: 4px solid #3b82f6 !important;
+  outline-offset: 4px !important;
+  border-radius: inherit;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+  transform: scale(1.02);
+  transition: all 0.2s ease-out;
+}

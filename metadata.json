@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Nexus AI Widget",
+  "description": "A minimalist, futuristic AI widget in blue and white, featuring thought processes and timing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
